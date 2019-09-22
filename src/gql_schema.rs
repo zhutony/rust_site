@@ -7,6 +7,11 @@ use crate::db::MyPool;
 
 use crate::schema::posts;
 
+#[macro_use]
+use serde_derive;
+
+use jsonwebtoken::{decode, encode, Algorithm, Header, Validation};
+
 pub struct Context {
     // pub pool: MyPool<SqliteConnection>,
     pub pool: actix_web::web::Data<MyPool<SqliteConnection>>,
