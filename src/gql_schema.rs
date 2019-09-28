@@ -1,25 +1,24 @@
+use crate::db::MyPool;
 use juniper::{FieldResult, RootNode};
 
-use diesel::prelude::*;
-use diesel::sqlite::SqliteConnection;
-
-use crate::db::MyPool;
-
-use crate::schema::posts;
+use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite;
+use rusqlite::params;
 
 #[macro_use]
-use serde_derive;
+use serde_derive::{Serialize, Deserialize};
+use serde_rusqlite::*;
 
 use jsonwebtoken::{decode, encode, Algorithm, Header, Validation};
 
 pub struct Context {
-    // pub pool: MyPool<SqliteConnection>,
-    pub pool: actix_web::web::Data<MyPool<SqliteConnection>>,
+    pub pool: actix_web::web::Data<MyPool>,
+    // pub req: actix_web::HttpRequest,
 }
 
 impl juniper::Context for Context {}
 
-#[derive(Queryable, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct Post {
     id: i32,
     content: String,
@@ -50,32 +49,28 @@ impl Post {
             };
             Ok(result)
         } else {
-            let connection = &context.pool.get().unwrap();
-            use crate::schema::posts::dsl::*;
-            let result = posts
-                .filter(crate::schema::posts::dsl::id.eq(temp_parent_id))
-                .get_result::<Post>(connection)?;
+            let connection = context.pool.get().unwrap();
+
+            let result = Post {
+                id: 0i32,
+                content: "ROOT".to_owned(),
+                parent_id: 0i32,
+            };
             Ok(result)
-            // let result = Post {
-            //     id: 0i32,
-            //     content: "NOT ROOT".to_owned(),
-            //     parent_id: 0i32,
-            // };
-            // Ok(result)
         }
     }
     fn children(&self, context: &Context) -> FieldResult<Vec<Post>> {
         let connection = &context.pool.get().unwrap();
-        use crate::schema::posts::dsl::*;
-        let result = posts
-            .filter(parent_id.eq(&self.id))
-            .load::<Post>(connection)?;
-        Ok(result)
+        let result = Post {
+            id: 0i32,
+            content: "ROOT".to_owned(),
+            parent_id: 0i32,
+        };
+        Ok(vec![result])
     }
 }
 
-#[derive(GraphQLInputObject, Insertable, Debug)]
-#[table_name = "posts"]
+#[derive(GraphQLInputObject, Debug)]
 struct NewPost {
     content: String,
     parent_id: i32,
@@ -87,11 +82,35 @@ pub struct QueryRoot;
     Context = Context,
 )]
 impl QueryRoot {
-    fn posts(context: &Context) -> FieldResult<Vec<Post>> {
-        let connection = &context.pool.get().unwrap();
-        use crate::schema::posts::dsl::*;
-        let result = posts.limit(100).load::<Post>(connection)?;
-        Ok(result)
+    fn posts(context: &Context, parent_id: Option<i32>) -> FieldResult<Vec<Post>> {
+        let connection = context.pool.get().unwrap();
+        match parent_id {
+            Some(parent_id) => {
+                let mut statement = connection
+                    .prepare("SELECT * FROM posts WHERE parent_id = (?1)")
+                    .unwrap();
+                let mut result = from_rows::<Post>(statement.query(&[parent_id]).unwrap());
+                let temp_results = result
+                    .map(|a| a.expect("error getting posts"))
+                    .collect::<Vec<Post>>();
+                Ok(temp_results)
+            }
+            None => {
+                let mut statement = connection.prepare("SELECT * FROM posts").unwrap();
+                let mut result = from_rows::<Post>(statement.query(params![]).unwrap());
+                let temp_results = result
+                    .map(|a| a.expect("error getting posts"))
+                    .collect::<Vec<Post>>();
+                Ok(temp_results)
+            }
+        }
+
+        // let result = Post {
+        //     id: 0i32,
+        //     content: "ROOT".to_owned(),
+        //     parent_id: 0i32,
+        // };
+        // Ok(vec![result])
     }
     fn post(context: &Context, post_id: i32) -> FieldResult<Post> {
         if post_id == 0i32 {
@@ -102,12 +121,18 @@ impl QueryRoot {
             };
             Ok(result)
         } else {
-            let connection = &context.pool.get().unwrap();
-            use crate::schema::posts::dsl::*;
-            let result = posts
-                .filter(crate::schema::posts::dsl::id.eq(post_id))
-                .get_result::<Post>(connection)?;
-            Ok(result)
+            let connection = context.pool.get().unwrap();
+            let mut statement = connection
+                .prepare("SELECT * FROM posts WHERE id = (?)")
+                .unwrap();
+            let mut result = from_rows::<Post>(statement.query(&[post_id]).unwrap());
+            Ok(result.next().unwrap().expect("no post found"))
+            // let result = Post {
+            //     id: 0i32,
+            //     content: "ROOT".to_owned(),
+            //     parent_id: 0i32,
+            // };
+            // Ok(result)
         }
     }
 }
@@ -120,18 +145,20 @@ pub struct MutationRoot;
 impl MutationRoot {
     fn createPost(context: &Context, new_post: NewPost) -> FieldResult<bool> {
         let connection = &context.pool.get().unwrap();
-        use crate::schema::posts::dsl::*;
-        let result = diesel::insert_into(posts)
-            .values(&new_post)
-            .execute(connection)?;
-        // let result = diesel::insert_into(posts).values(&new_post).get_result::<Post>(connection)?;
+        let mut insert_stmt = connection
+            .prepare("INSERT INTO posts (content, parent_id) VALUES (?1, ?2)")
+            .expect("failed to prepare insert post statement");
+        insert_stmt
+            .execute(&[new_post.content, new_post.parent_id.to_string()])
+            .expect("error");
         Ok(true)
     }
     fn deletePost(context: &Context, post_id: i32) -> FieldResult<bool> {
         let connection = &context.pool.get().unwrap();
-        use crate::schema::posts::dsl::*;
-        let result = diesel::delete(posts.filter(id.eq(post_id))).execute(connection)?;
-        // let result = diesel::insert_into(posts).values(&new_post).get_result::<Post>(connection)?;
+        let mut insert_stmt = connection
+            .prepare("DELETE FROM posts WHERE id =  (?1)")
+            .expect("failed to prepare insert post statement");
+        insert_stmt.execute(&[post_id.to_string()]).expect("error");
         Ok(true)
     }
 }

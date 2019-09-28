@@ -1,4 +1,5 @@
-use diesel::r2d2::{ConnectionManager, Pool};
+use r2d2::{Pool};
+use r2d2_sqlite::SqliteConnectionManager;
 
-pub type MyPool<ConnectionType> = Pool<ConnectionManager<ConnectionType>>;
+pub type MyPool = Pool<SqliteConnectionManager>;
 // infer_schema!("dotenv:DATABASE_URL");

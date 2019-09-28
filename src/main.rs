@@ -9,7 +9,7 @@ extern crate actix_web;
 extern crate listenfd;
 extern crate std;
 
-use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer};
+use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use listenfd::ListenFd;
 use std::sync::Arc;
 
@@ -20,16 +20,18 @@ use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 
 mod gql_schema;
-mod schema;
 use crate::gql_schema::{create_schema, Context, Schema};
 
-#[macro_use]
-extern crate diesel;
+extern crate r2d2;
+extern crate r2d2_sqlite;
+extern crate rusqlite;
+use r2d2_sqlite::SqliteConnectionManager;
+use rusqlite::types::ToSql;
+use rusqlite::{params, Connection, Result};
 
 mod db;
 use db::MyPool;
-use diesel::r2d2::ConnectionManager;
-use diesel::sqlite::SqliteConnection;
+
 use dotenv::dotenv;
 use std::env;
 
@@ -47,10 +49,18 @@ fn graphiql() -> HttpResponse {
 fn graphql(
     st: web::Data<Arc<Schema>>,
     data: web::Json<GraphQLRequest>,
-    pool: web::Data<MyPool<SqliteConnection>>,
+    pool: web::Data<MyPool>,
+    req: web::Data<HttpRequest>,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
     web::block(move || {
-        let res = data.execute(&st, &Context { pool: pool });
+        // let temp_req = req.clone().;
+        let res = data.execute(
+            &st,
+            &Context {
+                pool: pool,
+                // req: temp_req,
+            },
+        );
         Ok::<_, serde_json::error::Error>(serde_json::to_string(&res)?)
     })
     .map_err(Error::from)
@@ -59,6 +69,14 @@ fn graphql(
             .content_type("application/json")
             .body(user))
     })
+}
+
+fn test(req: HttpRequest) -> HttpResponse {
+    println!("Handling POST request: {:?}", req);
+
+    HttpResponse::Ok()
+        .content_type("text/plain")
+        .body("hello world")
 }
 
 fn main() -> std::io::Result<()> {
@@ -72,11 +90,37 @@ fn main() -> std::io::Result<()> {
 
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let manager = SqliteConnectionManager::file(database_url);
 
-    let pool = MyPool::<SqliteConnection>::builder()
-        .build(ConnectionManager::<SqliteConnection>::new(database_url))
+    let pool = r2d2::Pool::new(manager).unwrap();
+
+    let connection = pool.get().unwrap();
+
+    connection
+        .execute_batch(
+            "
+                BEGIN TRANSACTION;
+                PRAGMA foreign_keys = ON;
+                DROP TABLE posts;
+                CREATE TABLE IF NOT EXISTS posts( 
+                    id INTEGER NOT NULL PRIMARY KEY, 
+                    content TEXT, 
+                    parent_id INT REFERENCES posts (id) ON DELETE CASCADE
+                );
+                COMMIT;
+            ",
+        )
         .unwrap();
-    // let schema = std::sync::Arc::new(create_schema());
+    let mut insert_stmt = connection
+        .prepare("INSERT INTO posts (content, parent_id) VALUES (?1, ?2)")
+        .expect("failed to prepare insert post statement");
+    insert_stmt.execute(&["1", "0"]).expect("error");
+    insert_stmt.execute(&["1.1", "1"]).expect("error");
+    insert_stmt.execute(&["1.2", "1"]).expect("error");
+    insert_stmt.execute(&["1.3", "1"]).expect("error");
+    insert_stmt.execute(&["1.2.1", "3"]).expect("error");
+    insert_stmt.execute(&["1.2.2", "3"]).expect("error");
+
     let schema = Arc::new(create_schema());
 
     let mut listenfd = ListenFd::from_env();
@@ -85,6 +129,7 @@ fn main() -> std::io::Result<()> {
             .data(schema.clone())
             .data(pool.clone())
             .wrap(middleware::Logger::default())
+            .service(web::resource("/test").route(web::get().to_async(test)))
             .service(web::resource("/graphql").route(web::post().to_async(graphql)))
             .service(web::resource("/graphiql").route(web::get().to(graphiql)))
     })
