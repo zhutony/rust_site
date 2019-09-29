@@ -4,14 +4,23 @@ version = "0.1.0"
 authors = ["lantos <l.leong1618@gmail.com>"]
 edition = "2018"
 
+
+
+[profile.dev]
+opt-level = 0
+
+[profile.release]
+opt-level = 3
+lto = true
+
 [dependencies]
 listenfd = "0.3.3"
 dotenv = "0.14.1"
-actix-web = "1.0.7"
+actix-web = "1.0.8"
 r2d2 = "0.8.5"
 rusqlite = "0.20.0"
 r2d2_sqlite = "0.12.0"
-env_logger = "0.6"
+env_logger = "0.7.0"
 futures = "0.1"
 serde = "1.0"
 log = "0.4.8"

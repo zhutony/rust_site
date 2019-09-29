@@ -9,7 +9,7 @@ extern crate actix_web;
 extern crate listenfd;
 extern crate std;
 
-use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{middleware, web, App, Error, HttpMessage, HttpRequest, HttpResponse, HttpServer};
 use listenfd::ListenFd;
 use std::sync::Arc;
 
@@ -26,8 +26,6 @@ extern crate r2d2;
 extern crate r2d2_sqlite;
 extern crate rusqlite;
 use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::types::ToSql;
-use rusqlite::{params, Connection, Result};
 
 mod db;
 use db::MyPool;
@@ -47,18 +45,23 @@ fn graphiql() -> HttpResponse {
 }
 
 fn graphql(
+    req: HttpRequest,
     st: web::Data<Arc<Schema>>,
     data: web::Json<GraphQLRequest>,
     pool: web::Data<MyPool>,
-    req: web::Data<HttpRequest>,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
+    println!("Handling POST request: {:?}", req);
+    let jwt = match req.cookie("t") {
+        Some(cookie) => Some(cookie.value().to_owned()),
+        None => None,
+    };
     web::block(move || {
         // let temp_req = req.clone().;
         let res = data.execute(
             &st,
             &Context {
                 pool: pool,
-                // req: temp_req,
+                jwt: jwt,
             },
         );
         Ok::<_, serde_json::error::Error>(serde_json::to_string(&res)?)
@@ -72,8 +75,7 @@ fn graphql(
 }
 
 fn test(req: HttpRequest) -> HttpResponse {
-    println!("Handling POST request: {:?}", req);
-
+    println!("Handling POST request: {:?}", req.cookies());
     HttpResponse::Ok()
         .content_type("text/plain")
         .body("hello world")
@@ -129,9 +131,9 @@ fn main() -> std::io::Result<()> {
             .data(schema.clone())
             .data(pool.clone())
             .wrap(middleware::Logger::default())
-            .service(web::resource("/test").route(web::get().to_async(test)))
             .service(web::resource("/graphql").route(web::post().to_async(graphql)))
             .service(web::resource("/graphiql").route(web::get().to(graphiql)))
+            .service(web::resource("/test").route(web::get().to(test)))
     })
     .workers(10);
 
@@ -142,6 +144,5 @@ fn main() -> std::io::Result<()> {
     };
 
     println!("Started http server: http://127.0.0.1:3000");
-
     server.run()
 }

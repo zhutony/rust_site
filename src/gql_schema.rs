@@ -1,22 +1,32 @@
 use crate::db::MyPool;
 use juniper::{FieldResult, RootNode};
 
-use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite;
 use rusqlite::params;
 
-#[macro_use]
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 use serde_rusqlite::*;
 
 use jsonwebtoken::{decode, encode, Algorithm, Header, Validation};
 
 pub struct Context {
     pub pool: actix_web::web::Data<MyPool>,
-    // pub req: actix_web::HttpRequest,
+    pub jwt: Option<String>, // pub req: actix_web::HttpRequest,
 }
 
 impl juniper::Context for Context {}
+
+#[derive(Serialize, Deserialize, Debug, GraphQLObject, PartialEq)]
+struct User {
+    id: i32,
+    username: String,
+}
+
+impl User {
+    fn login(&self) -> FieldResult<String> {
+        Ok(encode(&Header::default(), self, "secret".as_ref())?)
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct Post {
@@ -82,6 +92,17 @@ pub struct QueryRoot;
     Context = Context,
 )]
 impl QueryRoot {
+    fn isLoggedIn(context: &Context) -> FieldResult<User> {
+        let token = &context.jwt.clone();
+        match token {
+            Some(token) => {
+                let user = decode::<User>(&token, "secret".as_bytes(), &Validation::default());
+                Ok(user?.claims)
+            }
+            None => Err("False")?,
+        }
+    }
+
     fn posts(context: &Context, parent_id: Option<i32>) -> FieldResult<Vec<Post>> {
         let connection = context.pool.get().unwrap();
         match parent_id {
@@ -144,14 +165,25 @@ pub struct MutationRoot;
 )]
 impl MutationRoot {
     fn createPost(context: &Context, new_post: NewPost) -> FieldResult<bool> {
-        let connection = &context.pool.get().unwrap();
-        let mut insert_stmt = connection
-            .prepare("INSERT INTO posts (content, parent_id) VALUES (?1, ?2)")
-            .expect("failed to prepare insert post statement");
-        insert_stmt
-            .execute(&[new_post.content, new_post.parent_id.to_string()])
-            .expect("error");
-        Ok(true)
+        let token = &context.jwt.clone();
+        match token {
+            Some(token) => {
+                let token_data = decode::<User>(
+                    &token,
+                    "secret".as_bytes(),
+                    &Validation::new(Algorithm::HS256),
+                );
+                let connection = &context.pool.get().unwrap();
+                let mut insert_stmt = connection
+                    .prepare("INSERT INTO posts (content, parent_id) VALUES (?1, ?2)")
+                    .expect("failed to prepare insert post statement");
+                insert_stmt
+                    .execute(&[new_post.content, new_post.parent_id.to_string()])
+                    .expect("error");
+                Ok(true)
+            }
+            None => Err("Not logged in")?,
+        }
     }
     fn deletePost(context: &Context, post_id: i32) -> FieldResult<bool> {
         let connection = &context.pool.get().unwrap();
@@ -160,6 +192,13 @@ impl MutationRoot {
             .expect("failed to prepare insert post statement");
         insert_stmt.execute(&[post_id.to_string()]).expect("error");
         Ok(true)
+    }
+    fn login(username: String, password: String) -> FieldResult<String> {
+        let user = User {
+            id: 0i32,
+            username: username,
+        };
+        user.login()
     }
 }
 
