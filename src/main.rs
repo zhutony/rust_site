@@ -82,8 +82,6 @@ fn test(req: HttpRequest) -> HttpResponse {
 }
 
 fn main() -> std::io::Result<()> {
-    // print!("http://127.0.0.1:3000/graphqli",);
-
     std::env::set_var("RUST_LOG", "actix_web=debug");
     std::env::set_var("RUST_BACKTRACE", "1");
     info!("STARTING SERVER");
@@ -143,6 +141,7 @@ fn main() -> std::io::Result<()> {
         server.bind("localhost:3000").unwrap()
     };
 
+    println!("graphiql started at http://127.0.0.1:3000/graphiql",);
     println!("Started http server: http://127.0.0.1:3000");
     server.run()
 }

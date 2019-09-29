@@ -20,11 +20,15 @@ impl juniper::Context for Context {}
 struct User {
     id: i32,
     username: String,
+    exp: i32,
 }
 
 impl User {
     fn login(&self) -> FieldResult<String> {
-        Ok(encode(&Header::default(), self, "secret".as_ref())?)
+        let mut header = Header::default();
+        header.kid = Some("signing_key".to_owned());
+        header.alg = Algorithm::HS256;
+        Ok(encode(&header, self, "secret".as_ref())?)
     }
 }
 
@@ -96,7 +100,9 @@ impl QueryRoot {
         let token = &context.jwt.clone();
         match token {
             Some(token) => {
-                let user = decode::<User>(&token, "secret".as_bytes(), &Validation::default());
+                let mut validation = Validation::default();
+                validation.algorithms = vec![Algorithm::HS256];
+                let user = decode::<User>(&token, "secret".as_bytes(), &validation);
                 Ok(user?.claims)
             }
             None => Err("False")?,
@@ -197,6 +203,7 @@ impl MutationRoot {
         let user = User {
             id: 0i32,
             username: username,
+            exp: std::i32::MAX,
         };
         user.login()
     }
