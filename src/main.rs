@@ -31,7 +31,12 @@ mod db;
 use db::MyPool;
 
 use dotenv::dotenv;
+
 use std::env;
+
+use failure;
+
+type Result<T> = std::result::Result<T, failure::Error>;
 
 extern crate env_logger;
 #[macro_use]
@@ -50,7 +55,6 @@ fn graphql(
     data: web::Json<GraphQLRequest>,
     pool: web::Data<MyPool>,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
-    println!("Handling POST request: {:?}", req);
     let jwt = match req.cookie("t") {
         Some(cookie) => Some(cookie.value().to_owned()),
         None => None,
@@ -74,34 +78,26 @@ fn graphql(
     })
 }
 
-fn test(req: HttpRequest) -> HttpResponse {
-    println!("Handling POST request: {:?}", req.cookies());
-    HttpResponse::Ok()
-        .content_type("text/plain")
-        .body("hello world")
-}
-
-fn main() -> std::io::Result<()> {
+fn main() -> Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=debug");
     std::env::set_var("RUST_BACKTRACE", "1");
-    info!("STARTING SERVER");
 
     env_logger::init();
 
     dotenv().ok();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    info!("STARTING SERVER");
+    let database_url = env::var("DATABASE_URL")?;
     let manager = SqliteConnectionManager::file(database_url);
 
-    let pool = r2d2::Pool::new(manager).unwrap();
+    let pool = r2d2::Pool::new(manager)?;
 
-    let connection = pool.get().unwrap();
+    let connection = pool.get()?;
 
-    connection
-        .execute_batch(
-            "
+    connection.execute_batch(
+        "
                 BEGIN TRANSACTION;
                 PRAGMA foreign_keys = ON;
-                DROP TABLE posts;
+                DROP TABLE IF EXISTS posts;
                 CREATE TABLE IF NOT EXISTS posts( 
                     id INTEGER NOT NULL PRIMARY KEY, 
                     content TEXT, 
@@ -109,17 +105,15 @@ fn main() -> std::io::Result<()> {
                 );
                 COMMIT;
             ",
-        )
-        .unwrap();
-    let mut insert_stmt = connection
-        .prepare("INSERT INTO posts (content, parent_id) VALUES (?1, ?2)")
-        .expect("failed to prepare insert post statement");
-    insert_stmt.execute(&["1", "0"]).expect("error");
-    insert_stmt.execute(&["1.1", "1"]).expect("error");
-    insert_stmt.execute(&["1.2", "1"]).expect("error");
-    insert_stmt.execute(&["1.3", "1"]).expect("error");
-    insert_stmt.execute(&["1.2.1", "3"]).expect("error");
-    insert_stmt.execute(&["1.2.2", "3"]).expect("error");
+    )?;
+    let mut insert_stmt =
+        connection.prepare("INSERT INTO posts (content, parent_id) VALUES (?1, ?2)")?;
+    insert_stmt.execute(&["1", "0"])?;
+    insert_stmt.execute(&["1.1", "1"])?;
+    insert_stmt.execute(&["1.2", "1"])?;
+    insert_stmt.execute(&["1.3", "1"])?;
+    insert_stmt.execute(&["1.2.1", "3"])?;
+    insert_stmt.execute(&["1.2.2", "3"])?;
 
     let schema = Arc::new(create_schema());
 
@@ -131,17 +125,16 @@ fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             .service(web::resource("/graphql").route(web::post().to_async(graphql)))
             .service(web::resource("/graphiql").route(web::get().to(graphiql)))
-            .service(web::resource("/test").route(web::get().to(test)))
     })
     .workers(10);
 
-    server = if let Some(socket) = listenfd.take_tcp_listener(0).unwrap() {
-        server.listen(socket).unwrap()
+    server = if let Some(socket) = listenfd.take_tcp_listener(0)? {
+        server.listen(socket)?
     } else {
-        server.bind("localhost:3000").unwrap()
+        server.bind("localhost:3000")?
     };
 
     println!("graphiql started at http://127.0.0.1:3000/graphiql",);
     println!("Started http server: http://127.0.0.1:3000");
-    server.run()
+    Ok(server.run()?)
 }
