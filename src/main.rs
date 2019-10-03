@@ -19,13 +19,15 @@ use futures::future::Future;
 use juniper::http::graphiql::graphiql_source;
 use juniper::http::GraphQLRequest;
 
-mod gql_schema;
-use crate::gql_schema::{create_schema, Context, Schema};
+mod graphql_schema;
+use crate::graphql_schema::{create_schema, Context, Schema};
 
 extern crate r2d2;
 extern crate r2d2_sqlite;
 extern crate rusqlite;
 use r2d2_sqlite::SqliteConnectionManager;
+
+mod models;
 
 mod db;
 use db::MyPool;
