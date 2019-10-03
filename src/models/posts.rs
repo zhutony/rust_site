@@ -33,7 +33,7 @@ pub fn get_posts(connection: &MyPooledConnection, parent_id: i32) -> FieldResult
 pub fn get_all_posts(connection: &MyPooledConnection) -> FieldResult<Vec<Post>> {
     let now = time::Instant::now();
     let mut statement = connection.prepare("SELECT * FROM posts")?;
-    let mut result = from_rows::<Post>(statement.query(params![])?);
+    let result = from_rows::<Post>(statement.query(params![])?);
     let temp_results = result.collect::<Result<Vec<_>>>();
     println!("time taken {:?}", now.elapsed());
     Ok(temp_results?)
