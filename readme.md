@@ -45,7 +45,7 @@
         - [x] create_post(parent_id, content)
         - [x] delete_post
         - [x] delete_post_recursive
-        - [ s] shadow delete
+        - [ ] shadow delete
         - [x] errors
 
 ## Site purpose
