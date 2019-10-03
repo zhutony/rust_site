@@ -7,18 +7,18 @@
     - [ ] posts
 
 ## Backend
-- [] graphql
+- [ ] graphql
     - [x] serve ( actix web )
-    - [] subscriptions ( not implemented in juniper yet)
+    - [ ] subscriptions ( not implemented in juniper yet)
 
-- [] database connection
+- [ ] database connection
     - [x] pooled
     - [x] graphql.context
     - [x] sqlite demo
     - [ ] postgresql
 
-- [] user.login
-- [] posts
+- [ ] user.login
+- [ ] posts
 
 ### Entities
 
@@ -45,7 +45,7 @@
         - [x] create_post(parent_id, content)
         - [x] delete_post
         - [x] delete_post_recursive
-        - [] shadow delete
+        - [ s] shadow delete
         - [x] errors
 
 ## Site purpose
