@@ -1,5 +1,7 @@
 use crate::db::MyPooledConnection;
-use crate::graphql_schema::Post;
+use crate::graphql_schema::Context;
+
+use serde_derive::{Deserialize, Serialize};
 
 use rusqlite::{self, params};
 use serde_rusqlite::*;
@@ -7,6 +9,51 @@ use serde_rusqlite::*;
 use juniper::FieldResult;
 
 use std::time;
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+pub struct Post {
+    pub id: i32,
+    pub content: String,
+    pub parent_id: i32,
+}
+
+#[juniper::object(
+    Context = Context,
+)]
+#[graphql(description = "A post")]
+impl Post {
+    fn id(&self) -> i32 {
+        self.id
+    }
+    fn content(&self) -> &str {
+        self.content.as_str()
+    }
+    fn parent_id(&self) -> i32 {
+        self.parent_id
+    }
+    fn parent(&self, context: &Context) -> FieldResult<Post> {
+        let temp_parent_id = self.parent_id.clone();
+        if temp_parent_id == 0i32 {
+            let result = Post {
+                id: 0i32,
+                content: "ROOT".to_owned(),
+                parent_id: 0i32,
+            };
+            Ok(result)
+        } else {
+            get_post(&context.pool.get()?, self.parent_id)
+        }
+    }
+    fn children(&self, context: &Context) -> FieldResult<Vec<Post>> {
+        get_posts(&context.pool.get()?, self.id)
+    }
+}
+
+#[derive(GraphQLInputObject, Debug)]
+pub struct NewPost {
+    content: String,
+    parent_id: i32,
+}
 
 pub fn delete_post(connection: &MyPooledConnection, post_id: i32) -> FieldResult<bool> {
     let mut insert_stmt = connection.prepare("DELETE FROM posts WHERE id =  (?1)")?;

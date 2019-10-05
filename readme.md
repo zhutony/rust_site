@@ -73,7 +73,6 @@ backend:
         - graphql:
             - posts
 
-    content_management
 
 
 ```
@@ -103,3 +102,10 @@ src:
 
 
 ```
+
+## Permssions
+
+what is the best way for permissions.  
+have them attatched as flags on the entites?  
+have a permission schema?
+

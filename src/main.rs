@@ -100,10 +100,20 @@ fn main() -> Result<()> {
                 BEGIN TRANSACTION;
                 PRAGMA foreign_keys = ON;
                 DROP TABLE IF EXISTS posts;
+                DROP TABLE IF EXISTS users;
+                
                 CREATE TABLE IF NOT EXISTS posts( 
                     id INTEGER NOT NULL PRIMARY KEY, 
                     content TEXT, 
                     parent_id INT REFERENCES posts (id) ON DELETE CASCADE
+                );
+
+                CREATE TABLE IF NOT EXISTS users( 
+                    id INTEGER NOT NULL PRIMARY KEY, 
+                    email VARCHAR(255), 
+                    username VARCHAR(255), 
+                    firstname VARCHAR(255), 
+                    lastname VARCHAR(255), 
                 );
                 COMMIT;
             ",
