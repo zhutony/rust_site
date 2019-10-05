@@ -98,22 +98,23 @@ fn main() -> Result<()> {
     connection.execute_batch(
         "
                 BEGIN TRANSACTION;
-                PRAGMA foreign_keys = ON;
                 DROP TABLE IF EXISTS posts;
                 DROP TABLE IF EXISTS users;
                 
                 CREATE TABLE IF NOT EXISTS posts( 
                     id INTEGER NOT NULL PRIMARY KEY, 
                     content TEXT, 
-                    parent_id INT REFERENCES posts (id) ON DELETE CASCADE
+                    author_id INT REFERENCES users (id),
+                    parent_id INT REFERENCES posts (id) 
                 );
 
-                CREATE TABLE IF NOT EXISTS users( 
+                CREATE TABLE IF NOT EXISTS users ( 
                     id INTEGER NOT NULL PRIMARY KEY, 
-                    email VARCHAR(255), 
-                    username VARCHAR(255), 
-                    firstname VARCHAR(255), 
-                    lastname VARCHAR(255), 
+                    username VARCHAR (255) UNIQUE, 
+                    email VARCHAR (255) UNIQUE, 
+                    hash VARCHAR (255), 
+                    firstname VARCHAR (255), 
+                    lastname VARCHAR (255)
                 );
                 COMMIT;
             ",

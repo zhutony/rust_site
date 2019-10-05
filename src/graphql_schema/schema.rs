@@ -5,7 +5,7 @@ use std::time;
 use crate::models::User;
 
 use crate::models::{
-    delete_post, get_all_posts, get_post, get_posts, get_recursive, NewPost, Post,
+    delete_post, get_all_posts, get_post, get_posts, get_recursive, NewPost, NewUser, Post,
 };
 
 use crate::graphql_schema::Context;
@@ -36,6 +36,7 @@ impl QueryRoot {
         if post_id == 0i32 {
             let result = Post {
                 id: 0i32,
+                author_id: 0i32,
                 content: "ROOT".to_owned(),
                 parent_id: 0i32,
             };
@@ -93,13 +94,13 @@ impl MutationRoot {
         }
         Ok(true)
     }
-    fn login(username: String, password: String) -> FieldResult<String> {
-        let user = User {
-            id: 0i32,
-            username: username,
-            exp: std::i32::MAX,
-        };
-        user.login()
+    fn login(context: &Context, username: String, password: String) -> FieldResult<String> {
+        let connection = &context.pool.get()?;
+        User::login(connection, Some(username), Some(password))
+    }
+    fn create_user(context: &Context, user: NewUser) -> FieldResult<String> {
+        let connection = &context.pool.get()?;
+        User::new_user(connection, user)
     }
 }
 

@@ -14,6 +14,7 @@ use std::time;
 pub struct Post {
     pub id: i32,
     pub content: String,
+    pub author_id: i32,
     pub parent_id: i32,
 }
 
@@ -37,6 +38,7 @@ impl Post {
             let result = Post {
                 id: 0i32,
                 content: "ROOT".to_owned(),
+                author_id: 0i32,
                 parent_id: 0i32,
             };
             Ok(result)
@@ -52,6 +54,7 @@ impl Post {
 #[derive(GraphQLInputObject, Debug)]
 pub struct NewPost {
     content: String,
+    author_id: i32,
     parent_id: i32,
 }
 
