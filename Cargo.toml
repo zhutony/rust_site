@@ -4,8 +4,6 @@ version = "0.1.0"
 authors = ["lantos <l.leong1618@gmail.com>"]
 edition = "2018"
 
-
-
 [profile.dev]
 opt-level = 0
 

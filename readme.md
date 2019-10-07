@@ -24,14 +24,17 @@
 
 - [ ] User entity
     - db
-        - [ ] db entity
+        - [x] db entity
         - [ ] update_user
-        - [ ] delete_user
-        - [ ] create_user
+        - [x] delete_user
+        - [x] create_user
     - graphql
         - [x] jwt
-        - [ ] username. pass_hash
-        - [ ] isValid
+        - [x] User::get_user(username || user_id)
+        - [ ] User::createUser(new_user: NewUser)
+        - [ ] User::hash_isValid(has)
+        - [ ] validate password
+    <!-- - [ ] user class caller (make it easier to find out if is valid() can post() user exist() maybe eeven get_user() and protect that) -->
 
 - [ ] post entity
     - db

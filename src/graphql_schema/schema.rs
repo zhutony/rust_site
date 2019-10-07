@@ -58,14 +58,15 @@ impl MutationRoot {
         match token {
             Some(token) => {
                 let connection = &context.pool.get()?;
-                let mut insert_stmt =
-                    connection.prepare("INSERT INTO posts (content, parent_id) VALUES (?1, ?2)")?;
-                let mut statements = "".to_owned();
+                let mut insert_post_stmt = connection.prepare(
+                    "INSERT INTO posts (content, parent_id, author_id) VALUES (?1, ?2, ?3)",
+                )?;
+                let mut insert_posts_stmt = "".to_owned();
                 let now = time::Instant::now();
 
                 for x in 0..100000 {
-                    statements = statements
-                        + "INSERT INTO posts (content, parent_id) VALUES (\"speed\", 1);";
+                    insert_posts_stmt = insert_posts_stmt
+                        + "INSERT INTO posts (content, parent_id, author_id) VALUES (\"speed\", 1, 1);";
                 }
                 connection.execute_batch(&format!(
                     "
@@ -73,7 +74,7 @@ impl MutationRoot {
                         {}
                         COMMIT;
                     ",
-                    statements
+                    insert_posts_stmt
                 ))?;
                 println!("time taken {:?}", now.elapsed());
 
@@ -100,7 +101,17 @@ impl MutationRoot {
     }
     fn create_user(context: &Context, user: NewUser) -> FieldResult<String> {
         let connection = &context.pool.get()?;
-        User::new_user(connection, user)
+        User::create(connection, user)
+    }
+
+    fn delete_user(
+        context: &Context,
+        username: Option<String>,
+        email: Option<String>,
+        user_id: Option<i32>,
+    ) -> FieldResult<bool> {
+        let connection = &context.pool.get()?;
+        User::get_user(connection, username, email, user_id)?.delete(connection)
     }
 }
 

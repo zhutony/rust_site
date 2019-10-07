@@ -10,6 +10,8 @@ use juniper::FieldResult;
 
 use std::time;
 
+use crate::models::User;
+
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct Post {
     pub id: i32,
@@ -28,6 +30,25 @@ impl Post {
     }
     fn content(&self) -> &str {
         self.content.as_str()
+    }
+    fn author_id(&self) -> i32 {
+        self.author_id
+    }
+    fn author(&self, context: &Context) -> FieldResult<User> {
+        let temp_author_id = self.author_id.clone();
+        if temp_author_id == 0i32 {
+            let result = User {
+                id: 0i32,
+                email: "admin@domain.com".to_owned(),
+                firstname: "admin".to_owned(),
+                lastname: "admin".to_owned(),
+                username: "admin".to_owned(),
+                hash: "nohash".to_owned(),
+            };
+            Ok(result)
+        } else {
+            User::get_user(&context.pool.get()?, None, None, Some(self.author_id))
+        }
     }
     fn parent_id(&self) -> i32 {
         self.parent_id

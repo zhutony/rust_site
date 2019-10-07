@@ -30,13 +30,15 @@ use r2d2_sqlite::SqliteConnectionManager;
 mod models;
 
 mod db;
-use db::MyPool;
+use db::{db_schema, MyPool};
 
 use dotenv::dotenv;
 
 use std::env;
 
 use failure;
+
+use std::time;
 
 type Result<T> = std::result::Result<T, failure::Error>;
 
@@ -62,7 +64,7 @@ fn graphql(
         None => None,
     };
     web::block(move || {
-        // let temp_req = req.clone().;
+        let now = time::Instant::now();
         let res = data.execute(
             &st,
             &Context {
@@ -70,6 +72,7 @@ fn graphql(
                 jwt: jwt,
             },
         );
+        println!("time taken {:?}", now.elapsed());
         Ok::<_, serde_json::error::Error>(serde_json::to_string(&res)?)
     })
     .map_err(Error::from)
@@ -95,38 +98,15 @@ fn main() -> Result<()> {
 
     let connection = pool.get()?;
 
-    connection.execute_batch(
-        "
-                BEGIN TRANSACTION;
-                DROP TABLE IF EXISTS posts;
-                DROP TABLE IF EXISTS users;
-                
-                CREATE TABLE IF NOT EXISTS posts( 
-                    id INTEGER NOT NULL PRIMARY KEY, 
-                    content TEXT, 
-                    author_id INT REFERENCES users (id),
-                    parent_id INT REFERENCES posts (id) 
-                );
-
-                CREATE TABLE IF NOT EXISTS users ( 
-                    id INTEGER NOT NULL PRIMARY KEY, 
-                    username VARCHAR (255) UNIQUE, 
-                    email VARCHAR (255) UNIQUE, 
-                    hash VARCHAR (255), 
-                    firstname VARCHAR (255), 
-                    lastname VARCHAR (255)
-                );
-                COMMIT;
-            ",
-    )?;
-    let mut insert_stmt =
-        connection.prepare("INSERT INTO posts (content, parent_id) VALUES (?1, ?2)")?;
-    insert_stmt.execute(&["1", "0"])?;
-    insert_stmt.execute(&["1.1", "1"])?;
-    insert_stmt.execute(&["1.2", "1"])?;
-    insert_stmt.execute(&["1.3", "1"])?;
-    insert_stmt.execute(&["1.2.1", "3"])?;
-    insert_stmt.execute(&["1.2.2", "3"])?;
+    connection.execute_batch(&db_schema())?;
+    let mut insert_stmt = connection
+        .prepare("INSERT INTO posts (content, author_id, parent_id) VALUES (?1, ?2, ?3)")?;
+    insert_stmt.execute(&["1", "0", "1"])?;
+    insert_stmt.execute(&["1.1", "1", "1"])?;
+    insert_stmt.execute(&["1.2", "1", "1"])?;
+    insert_stmt.execute(&["1.3", "1", "1"])?;
+    insert_stmt.execute(&["1.2.1", "3", "1"])?;
+    insert_stmt.execute(&["1.2.2", "3", "1"])?;
 
     let schema = Arc::new(create_schema());
 
